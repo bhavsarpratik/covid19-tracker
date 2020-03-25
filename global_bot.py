@@ -20,14 +20,16 @@ def get_data():
     for t in tr_elements[0]:
         row = [x.text_content() for x in t.findall('td')[:-1]]
         rows.append(row)
+
     columns = ['Country', 'Confirmed', 'New', 'Deaths',
                'New Deaths', 'Recovered', 'Active', 'x', 'x']
-    df = pd.DataFrame(rows, columns=columns).replace('', None).iloc[:, :-2]
-    df = df[['Country', 'Confirmed', 'Recovered',
-             'Deaths', 'Active']].fillna(0)
+    df = pd.DataFrame(rows, columns=columns)
+    df = df.replace('', 0).iloc[:, :-2]
+
     for col in df.columns[1:]:
         df[col] = df[col].astype(str).str.replace(' ', '').replace(
             ',', '', regex=True).replace('+', '').apply(pd.to_numeric)
+
     df.dropna(inplace=True)
     df['Deaths'] = df['Deaths'].astype(int)
     return df
@@ -61,7 +63,7 @@ class TelegramMessenger:
         self.bot.send_message(parse_mode='HTML', chat_id=self.__credentials['chat_id'], text=message)
 
 
-def get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d', **kwargs):
+def get_relative_date(zone='UTC', format='%Y-%m-%d', **kwargs):
     tz = timezone(zone)
     time = datetime.datetime.now(tz)
     time_relative = time + relativedelta(**kwargs)
@@ -77,33 +79,35 @@ except:
     df = get_data()
     df.to_csv(f'data/global-{curr_date}.csv', index=False)
 
-df = df[['Country', 'Confirmed']]
-total_cases = df.Confirmed.sum()
+# df = df[['Country', 'Confirmed']]
+total_cases = df.New.sum()
 print(total_cases)
+print(df.head(100))
 
 while True:
     df_new = get_data()
     curr_time = get_relative_date(format='%Y-%m-%d %H:%M')
     curr_time_message = f'Case update at: {curr_time}'
-    total_cases_new = df_new.Confirmed.sum()
+    total_cases_new = df_new.New.sum()
     print(total_cases_new)
+    print(df_new.head(100))
     if total_cases != total_cases_new:  # checking total case change
         total_cases = total_cases_new  # updating total case 
         df_update = df_new
-        df_update = df_update.merge(
-            df.rename({'Confirmed': 'old_confirmed'}, axis=1))
-        df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
+        # df_update = df_update.merge(
+        #     df.rename({'Confirmed': 'old_confirmed'}, axis=1))
+        # df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
         df_update = df_update[df_update['New'] != 0]
         df_update = df_update[['Country', 'New',
                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
         
         df_update.to_csv(f'data/update-global-{curr_date}.csv', index=False)
         
-        # if len(df_update) > 0:
-        message = tabulate(df_update. set_index('Country'), headers='keys',
-                        tablefmt='simple', numalign="right")
-        # bot.send_message(curr_time_message)
-        bot.send_message(message)
+        for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 40): # Needed due to telegram 4096 char limit
+            print(sub_df.shape)
+            message = tabulate(sub_df.set_index('Country'), headers='keys',
+                            tablefmt='simple', numalign="right")
+            bot.send_message(message)
     else:
         message = 'No new cases'
 
@@ -112,8 +116,8 @@ while True:
 
     date = get_relative_date(format='%Y-%m-%d')
     if date != curr_date:
-        bot.send_message(f'Starting update for {curr_date} IST')
-        df = df_new[['Country', 'Confirmed']]
+        bot.send_message(f'Starting update for {curr_date} GMT')
+        # df = df_new[['Country', 'Confirmed']]
         curr_date = date
         df.to_csv(f'data/global-{curr_date}.csv', index=False)
     
