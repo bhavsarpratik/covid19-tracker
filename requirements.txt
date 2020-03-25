@@ -1,6 +1,5 @@
 pandas
 requests 
 lxml 
-beautifulsoup4 
 python-telegram-bot 
 tabulate 
