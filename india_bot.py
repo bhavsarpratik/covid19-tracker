@@ -96,11 +96,10 @@ while True:
                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
         
         df_update.to_csv(f'data/update-{curr_date}.csv', index=False)
+        df_update.State = df_update.State.apply(lambda x: x[:8])
+        df_update = df_update.rename({'Confirmed': 'Case'}, axis=1).set_index('State')
         
-        # if len(df_update) > 0:
-        message = tabulate(df_update.set_index('State'), headers='keys',
-                        tablefmt='simple', numalign="right")
-        # bot.send_message(curr_time_message)
+        message = '<pre>' + tabulate(df_update, headers='keys', tablefmt='orgtbl', numalign="right") + '</pre>'
         bot.send_message(message)
     else:
         message = 'No new cases'

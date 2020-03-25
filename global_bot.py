@@ -96,17 +96,16 @@ while True:
     if total_cases != total_cases_new:  # checking total case change
         total_cases = total_cases_new  # updating total case 
         df_update = df_new[df_new['New'] != 0]
-        # df_update = df_update.merge(
-        #     df.rename({'Confirmed': 'old_confirmed'}, axis=1))
-        # df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
         df_update = df_update[['Country', 'New',
                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
         
         df_update.to_csv(f'data/update-global-{curr_date}.csv', index=False)
         
+        df_update.Country = df_update.Country.apply(lambda x: x[:8])
+        df_update = df_update.rename({'Country': 'Place', 'Confirmed': 'Case'}, axis=1).set_index('Place')
+
         for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 40): # Needed due to telegram 4096 char limit
-            message = tabulate(sub_df.set_index('Country'), headers='keys',
-                            tablefmt='simple', numalign="right")
+            message = '<pre>' + tabulate(sub_df, headers='keys', tablefmt='orgtbl', numalign="right") + '</pre>'
             bot.send_message(message)
     else:
         message = 'No new cases'
