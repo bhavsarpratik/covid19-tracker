@@ -1,3 +1,8 @@
+"""
+Author: Pratik Bhavsar
+Github: https://github.com/bhavsarpratik/covid19-tracker
+"""
+
 from dateutil.relativedelta import relativedelta
 from pytz import timezone
 import numpy as np

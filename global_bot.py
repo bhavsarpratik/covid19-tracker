@@ -1,3 +1,8 @@
+"""
+Author: Pratik Bhavsar
+Github: https://github.com/bhavsarpratik/covid19-tracker
+"""
+
 from dateutil.relativedelta import relativedelta
 from pytz import timezone
 import numpy as np
@@ -24,15 +29,13 @@ def get_data():
     columns = ['Country', 'Confirmed', 'New', 'Deaths',
                'New Deaths', 'Recovered', 'Active', 'x', 'x']
     df = pd.DataFrame(rows, columns=columns)
-    df = df.replace('', 0).iloc[:, :-2]
+    df = df.astype(str).replace('', 0).iloc[:, :-2]
 
     for col in df.columns[1:]:
-        df[col] = df[col].astype(str).str.replace(' ', '').replace(
-            ',', '', regex=True).replace('+', '').apply(pd.to_numeric)
+        df[col] = df[col].str.replace(' ', '').replace(
+            ',', '', regex=True).replace('+', '').apply(pd.to_numeric).fillna(0).astype(int)
 
-    df.dropna(inplace=True)
-    df['Deaths'] = df['Deaths'].astype(int)
-    return df
+    return df.sort_values(['New', 'Confirmed'], ascending=False)
 
 
 class TelegramMessenger:
@@ -82,7 +85,6 @@ except:
 # df = df[['Country', 'Confirmed']]
 total_cases = df.New.sum()
 print(total_cases)
-print(df.head(100))
 
 while True:
     df_new = get_data()
@@ -90,21 +92,19 @@ while True:
     curr_time_message = f'Case update at: {curr_time}'
     total_cases_new = df_new.New.sum()
     print(total_cases_new)
-    print(df_new.head(100))
+
     if total_cases != total_cases_new:  # checking total case change
         total_cases = total_cases_new  # updating total case 
-        df_update = df_new
+        df_update = df_new[df_new['New'] != 0]
         # df_update = df_update.merge(
         #     df.rename({'Confirmed': 'old_confirmed'}, axis=1))
         # df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
-        df_update = df_update[df_update['New'] != 0]
         df_update = df_update[['Country', 'New',
                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
         
         df_update.to_csv(f'data/update-global-{curr_date}.csv', index=False)
         
         for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 40): # Needed due to telegram 4096 char limit
-            print(sub_df.shape)
             message = tabulate(sub_df.set_index('Country'), headers='keys',
                             tablefmt='simple', numalign="right")
             bot.send_message(message)
