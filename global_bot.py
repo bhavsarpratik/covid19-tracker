@@ -105,7 +105,8 @@ while True:
         df_update = df_update.rename({'Country': 'Place', 'Confirmed': 'Case'}, axis=1).set_index('Place')
 
         for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 40): # Needed due to telegram 4096 char limit
-            message = '<pre>' + tabulate(sub_df, headers='keys', tablefmt='orgtbl', numalign="right") + '</pre>'
+            message = tabulate(sub_df, headers='keys', tablefmt='simple', numalign="center")
+            message = '<pre>' + message + '</pre>'
             bot.send_message(message)
     else:
         message = 'No new cases'

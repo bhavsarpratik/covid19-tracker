@@ -91,15 +91,18 @@ while True:
         df_update = df_update.merge(
             df.rename({'Confirmed': 'old_confirmed'}, axis=1))
         df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
-        df_update = df_update[df_update['New'] != 0]
+        df_update = df_update[df_update['Confirmed'] != 0]
         df_update = df_update[['State', 'New',
                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
         
         df_update.to_csv(f'data/update-{curr_date}.csv', index=False)
+        
         df_update.State = df_update.State.apply(lambda x: x[:8])
         df_update = df_update.rename({'Confirmed': 'Case'}, axis=1).set_index('State')
-        
-        message = '<pre>' + tabulate(df_update, headers='keys', tablefmt='orgtbl', numalign="right") + '</pre>'
+
+        message = tabulate(df_update, headers='keys', tablefmt='simple', numalign="center")
+        message = '<pre>' + message + '</pre>'
+
         bot.send_message(message)
     else:
         message = 'No new cases'
