@@ -25,9 +25,9 @@ def get_data():
         rows.append(row)
 
     columns = ['Country', 'Confirmed', 'New', 'Deaths',
-               'New Deaths', 'Recovered', 'Active', 'x', 'x']
+               'New Deaths', 'Recovered', 'Active', 'x', 'x', 'x']
     df = pd.DataFrame(rows, columns=columns)
-    df = df.astype(str).replace('', 0).iloc[:, :-2]
+    df = df.astype(str).replace('', 0).iloc[:, :-3]
 
     for col in df.columns[1:]:
         df[col] = df[col].str.replace(' ', '').replace(
@@ -53,6 +53,10 @@ total_cases = df.New.sum()
 print(total_cases)
 
 while True:
+    date = get_relative_date(format='%Y-%m-%d')
+    if date != curr_date:
+        print(f'Starting update for {curr_date} GMT. Updates every 6 hours and shows for countries with more than 50 new cases.')
+
     df_new = get_data()
     curr_time = get_relative_date(format='%Y-%m-%d %H:%M')
     curr_time_message = f'Case update at: {curr_time}'
@@ -70,7 +74,7 @@ while True:
         df_update.Country = df_update.Country.apply(lambda x: x[:8])
         df_update = df_update.rename({'Country': 'Place', 'Confirmed': 'Case'}, axis=1).set_index('Place')
 
-        for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 40): # Needed due to telegram 4096 char limit
+        for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 100): # Needed due to telegram 4096 char limit
             message = get_clean_table(sub_df)
             bot.send_message(message)
     else:
@@ -78,15 +82,12 @@ while True:
 
     print(curr_time_message)
     print(message)
-
-    date = get_relative_date(format='%Y-%m-%d')
     if date != curr_date:
-        bot.send_message(f'Starting update for {curr_date} GMT')
         # df = df_new[['Country', 'Confirmed']]
         curr_date = date
         df.to_csv(f'data/global-{curr_date}.csv', index=False)
     
-    time.sleep(3600)
+    time.sleep(3600*6)
 
 
 

@@ -30,23 +30,39 @@ def get_data():
     return df
 
 
-def get_time_series():
+def get_newcases_time_series():
     url = 'https://api.covid19india.org/data.json'
     page = requests.get(url)
     df = pd.DataFrame(json.loads(page.content)[
                       'cases_time_series']).dropna().set_index('date')
-    df = df.iloc[-10:-1, :2]
+    df = df.iloc[-10:, :1]
     # df.loc["Total"] = df.sum()
-    df.columns = ['Cases', 'Deaths']
+    df.columns = ['NewCases']
     df = df.astype(int)
-    df['%Change'] = df.Cases.pct_change()*100
+    df['%Change'] = df.NewCases.pct_change()*100
     df = df[-7:]
-    df['%Change'] = df['%Change'].astype(int)
+    df['%Change'] = df['%Change'].astype(int).round(2).apply(lambda x: f'{x}%')
+    return df
+
+
+def get_total_time_series():
+    url = 'https://api.covid19india.org/data.json'
+    page = requests.get(url)
+    df = pd.DataFrame(json.loads(page.content)[
+                      'cases_time_series']).dropna().set_index('date')
+    df = df[['totalconfirmed']].rename(
+        {'totalconfirmed': 'TotalCases'}, axis=1)
+    df = df.iloc[-10:, :1]
+    df = df.astype(int)
+    df['%Increase'] = df.TotalCases.pct_change()*100
+    df = df[-7:]
+    df['%Increase'] = df['%Increase'].astype(
+        int).round(2).apply(lambda x: f'{x}%')
     return df
 
 
 bot = TelegramMessenger('india-config.json')
-curr_date = get_relative_date(format='%Y-%m-%d')
+curr_date = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d')
 
 try:
     df = pd.read_csv(f'data/{curr_date}.csv')
@@ -59,7 +75,7 @@ total_cases = df.iloc[0, 1]
 
 while True:
     df_new = get_data()
-    curr_time = get_relative_date(format='%Y-%m-%d %H:%M')
+    curr_time = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d %H:%M')
     curr_time_message = f'Case update at: {curr_time}'
     
     if total_cases != df_new.iloc[0, 2]:  # checking total case change
@@ -86,17 +102,19 @@ while True:
     print(curr_time_message)
     print(message)
 
-    date = get_relative_date(format='%Y-%m-%d')
+    date = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d')
     if date != curr_date:
         # message = tabulate(df_new.set_index('State'), headers='keys',
         #                    tablefmt='simple', numalign="right")
         # bot.send_message('Cases till yesterday')
         try:
-            message = get_clean_table(get_time_series())
+            message = get_clean_table(get_newcases_time_series())
+            bot.send_message(message)
+            message = get_clean_table(get_total_time_series())
             bot.send_message(message)
         except:
             print('API failed')
-        bot.send_message(f'Starting update for {curr_date} IST')
+        bot.send_message(f'Starting update for {curr_date} IST. Checks for update every 30 minutes.')
         df = df_new[['State', 'Confirmed']]
         curr_date = date
         df.to_csv(f'data/{curr_date}.csv', index=False)
