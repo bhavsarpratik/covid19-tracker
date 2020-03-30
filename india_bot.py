@@ -104,9 +104,7 @@ while True:
 
     date = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d')
     if date != curr_date:
-        # message = tabulate(df_new.set_index('State'), headers='keys',
-        #                    tablefmt='simple', numalign="right")
-        # bot.send_message('Cases till yesterday')
+        time.sleep(3600*6)
         try:
             message = get_clean_table(get_newcases_time_series())
             bot.send_message(message)
