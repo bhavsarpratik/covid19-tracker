@@ -24,8 +24,8 @@ def get_data():
         row = [x.text_content() for x in t.findall('td')[:-1]]
         rows.append(row)
 
-    columns = ['Country', 'Confirmed', 'New', 'Deaths',
-               'New Deaths', 'Recovered', 'Active', 'x', 'x', 'x']
+    columns = ['Country', 'Total', 'New', 'Deaths',
+               'New Deaths', 'Recovered', 'Active', 'x', 'x', 'x', 'x']
     df = pd.DataFrame(rows, columns=columns)
     df = df.astype(str).replace('', 0).iloc[:, :-3]
 
@@ -33,10 +33,7 @@ def get_data():
         df[col] = df[col].str.replace(' ', '').replace(
             ',', '', regex=True).replace('+', '').apply(pd.to_numeric).fillna(0).astype(int)
 
-    df = df.sort_values(['New', 'Confirmed'], ascending=False)
-    total = df.sum().values
-    total[0] = 'Total'
-    return pd.concat([pd.DataFrame([total], columns=df.columns), df])
+    return df.sort_values(['New', 'Total'], ascending=False)
 
 
 bot = TelegramMessenger('global-config.json')
@@ -48,14 +45,14 @@ except:
     df = get_data()
     df.to_csv(f'data/global-{curr_date}.csv', index=False)
 
-# df = df[['Country', 'Confirmed']]
+# df = df[['Country', 'Total']]
 total_cases = df.New.sum()
 print(total_cases)
 
 while True:
     date = get_relative_date(format='%Y-%m-%d')
     if date != curr_date:
-        print(f'Starting update for {curr_date} GMT. Updates every 6 hours and shows for countries with more than 50 new cases.')
+        print(f'Starting update for {curr_date} GMT. Updates every 3 hours and shows for countries with more than 50 new cases.')
 
     df_new = get_data()
     curr_time = get_relative_date(format='%Y-%m-%d %H:%M')
@@ -67,12 +64,13 @@ while True:
         total_cases = total_cases_new  # updating total case 
         df_update = df_new[df_new['New'] > 50]
         df_update = df_update[['Country', 'New',
-                               'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
+                               'Total', 'Deaths']].sort_values(['New', 'Total'], ascending=False)
         
         df_update.to_csv(f'data/update-global-{curr_date}.csv', index=False)
         
         df_update.Country = df_update.Country.apply(lambda x: x[:8])
-        df_update = df_update.rename({'Country': 'Place', 'Confirmed': 'Case'}, axis=1).set_index('Place')
+        df_update = df_update.rename(
+            {'Country': 'Place', 'Total': 'Case'}, axis=1).set_index('Place').round()
 
         for g, sub_df in df_update.groupby(np.arange(len(df_update)) // 100): # Needed due to telegram 4096 char limit
             message = get_clean_table(sub_df)
@@ -83,11 +81,11 @@ while True:
     print(curr_time_message)
     print(message)
     if date != curr_date:
-        # df = df_new[['Country', 'Confirmed']]
+        # df = df_new[['Country', 'Total']]
         curr_date = date
         df.to_csv(f'data/global-{curr_date}.csv', index=False)
     
-    time.sleep(3600*6)
+    time.sleep(3600*3)
 
 
 
