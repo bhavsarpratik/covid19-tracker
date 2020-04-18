@@ -12,11 +12,10 @@ import json, time
 
 from utils import get_relative_date, TelegramMessenger, get_clean_table
 
-data_url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSc_2y5N0I67wDU38DjDh35IZSIS30rQf7_NYZhtYYGU1jJYT6_kDx4YpF-qw0LSlGsBYP8pqM_a1Pd/pubhtml#'
-
 
 def get_data():
-    page = requests.get(data_url)
+    url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSz8Qs1gE_IYpzlkFkCXGcL_BqR8hZieWVi-rphN1gfrO3H4lDtVZs4kd0C3P8Y9lhsT1rhoB-Q_cP4/pubhtml#'
+    page = requests.get(url)
     doc = lh.fromstring(page.content)
     tr_elements = doc.xpath('//*[@id="1896310216"]/div/table/tbody')
     rows=[]
@@ -74,50 +73,54 @@ df = df[['State', 'Confirmed']]
 total_cases = df.iloc[0, 1]
 
 while True:
-    df_new = get_data()
-    curr_time = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d %H:%M')
-    curr_time_message = f'Case update at: {curr_time}'
-    
-    if total_cases != df_new.iloc[0, 2]:  # checking total case change
-        total_cases = df_new.iloc[0, 2]  # updating total case 
-        df_update = df_new
-        df_update = df_update.merge(
-            df.rename({'Confirmed': 'old_confirmed'}, axis=1))
-        df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
-        df_update = df_update[df_update['Confirmed'] != 0]
-        df_update = df_update[['State', 'New',
-                               'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
+    try:
+        df_new = get_data()
+
+        curr_time = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d %H:%M')
+        curr_time_message = f'Case update at: {curr_time}'
         
-        df_update.to_csv(f'data/update-{curr_date}.csv', index=False)
+        if total_cases != df_new.iloc[0, 2]:  # checking total case change
+            total_cases = df_new.iloc[0, 2]  # updating total case 
+            df_update = df_new
+            df_update = df_update.merge(
+                df.rename({'Confirmed': 'old_confirmed'}, axis=1))
+            df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
+            df_update = df_update[df_update['Confirmed'] != 0]
+            df_update = df_update[['State', 'New',
+                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
+            
+            df_update.to_csv(f'data/update-{curr_date}.csv', index=False)
+            
+            df_update.State = df_update.State.apply(lambda x: x[:8])
+            df_update = df_update.rename({'Confirmed': 'Case'}, axis=1).set_index('State')
+
+            message = get_clean_table(df_update)
+
+            bot.send_message(message)
+        else:
+            message = 'No new cases'
+
+        print(curr_time_message)
+        print(message)
+
+        date = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d')
+        if date != curr_date:
+            time.sleep(3600*6)
+            try:
+                message = get_clean_table(get_newcases_time_series())
+                bot.send_message(message)
+                message = get_clean_table(get_total_time_series())
+                bot.send_message(message)
+            except:
+                print('API failed')
+            bot.send_message(f'Starting update for {curr_date} IST. Checks for update every 30 minutes.')
+            df = df_new[['State', 'Confirmed']]
+            curr_date = date
+            df.to_csv(f'data/{curr_date}.csv', index=False)
         
-        df_update.State = df_update.State.apply(lambda x: x[:8])
-        df_update = df_update.rename({'Confirmed': 'Case'}, axis=1).set_index('State')
-
-        message = get_clean_table(df_update)
-
-        bot.send_message(message)
-    else:
-        message = 'No new cases'
-
-    print(curr_time_message)
-    print(message)
-
-    date = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d')
-    if date != curr_date:
-        time.sleep(3600*6)
-        try:
-            message = get_clean_table(get_newcases_time_series())
-            bot.send_message(message)
-            message = get_clean_table(get_total_time_series())
-            bot.send_message(message)
-        except:
-            print('API failed')
-        bot.send_message(f'Starting update for {curr_date} IST. Checks for update every 30 minutes.')
-        df = df_new[['State', 'Confirmed']]
-        curr_date = date
-        df.to_csv(f'data/{curr_date}.csv', index=False)
-    
-    time.sleep(1800)
+        time.sleep(1800)
+    except:
+        time.sleep(60)
 
 
 
