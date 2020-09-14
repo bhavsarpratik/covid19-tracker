@@ -14,19 +14,14 @@ from utils import get_relative_date, TelegramMessenger, get_clean_table
 
 
 def get_data():
-    url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSz8Qs1gE_IYpzlkFkCXGcL_BqR8hZieWVi-rphN1gfrO3H4lDtVZs4kd0C3P8Y9lhsT1rhoB-Q_cP4/pubhtml#'
+    url = 'https://api.covid19india.org/data.json'
     page = requests.get(url)
-    doc = lh.fromstring(page.content)
-    tr_elements = doc.xpath('//*[@id="1896310216"]/div/table/tbody')
-    rows=[]
-    #For each row, store each first element (header) and an empty list
-    for t in tr_elements[0]:
-        row = [x.text_content() for x in t.findall('td')[:-1]]
-        rows.append(row)
-
-    df = pd.DataFrame(rows[1:], columns=rows[0]).replace('', None).dropna().drop_duplicates()
-    df[['Confirmed', 'Recovered', 'Deaths', 'Active']] = df[['Confirmed', 'Recovered', 'Deaths', 'Active']].apply(pd.to_numeric)
-    return df
+    df = pd.DataFrame(json.loads(page.content)['statewise'])
+    df.state = df.state.apply(lambda x: x[:6])
+    df = df.set_index('state').iloc[:, :6]
+    df = df[df.deltaconfirmed != '0'].rename(
+        {'active': 'Active', 'confirmed': 'Total', 'deaths': 'Deaths', 'deltaconfirmed': 'New'}, axis=1)
+    return df.astype(int).sort_values(['New', 'Total'], ascending=False)[['New', 'Total', 'Deaths']]
 
 
 def get_newcases_time_series():
@@ -69,7 +64,6 @@ except:
     df = get_data()
     df.to_csv(f'data/{curr_date}.csv', index=False)
 
-df = df[['State', 'Confirmed']]
 total_cases = df.iloc[0, 1]
 
 while True:
@@ -79,23 +73,11 @@ while True:
         curr_time = get_relative_date(zone='Asia/Kolkata', format='%Y-%m-%d %H:%M')
         curr_time_message = f'Case update at: {curr_time}'
         
-        if total_cases != df_new.iloc[0, 2]:  # checking total case change
-            total_cases = df_new.iloc[0, 2]  # updating total case 
+        if total_cases != df_new.iloc[0, 1]:  # checking total case change
+            total_cases = df_new.iloc[0, 1]  # updating total case 
             df_update = df_new
-            df_update = df_update.merge(
-                df.rename({'Confirmed': 'old_confirmed'}, axis=1))
-            df_update['New'] = df_update['Confirmed'] - df_update['old_confirmed']
-            df_update = df_update[df_update['Confirmed'] != 0]
-            df_update = df_update[['State', 'New',
-                                'Confirmed', 'Deaths']].sort_values(['New', 'Confirmed'], ascending=False)
-            
             df_update.to_csv(f'data/update-{curr_date}.csv', index=False)
-            
-            df_update.State = df_update.State.apply(lambda x: x[:8])
-            df_update = df_update.rename({'Confirmed': 'Case'}, axis=1).set_index('State')
-
             message = get_clean_table(df_update)
-
             bot.send_message(message)
         else:
             message = 'No new cases'
@@ -113,12 +95,12 @@ while True:
                 bot.send_message(message)
             except:
                 print('API failed')
-            bot.send_message(f'Starting update for {curr_date} IST. Checks for update every 30 minutes.')
-            df = df_new[['State', 'Confirmed']]
+            bot.send_message(f'Starting update for {curr_date} IST. Checks for update every hour.')
+            df = df_new
             curr_date = date
             df.to_csv(f'data/{curr_date}.csv', index=False)
         
-        time.sleep(1800)
+        time.sleep(3600)
     except:
         time.sleep(60)
 
